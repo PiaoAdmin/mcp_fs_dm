@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "data_manager": {
+      "command": "uv",
+      "args": [
+        "run",
+        "/home/piao/workspace/mcp/mcp-data-manager/server/server.py"
+      ]
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "allowed_directories": [
+    "/home/workspace/mcp",
+    "~"
+  ],
+  "shell": "/bin/bash",
+  "port": 8080
+}
