@@ -30,7 +30,7 @@ def validate_parent_dirs(path: str) -> bool:
     """
     Recursively validates parent directories until it finds a valid one
     @param path: The path to validate
-    @return: True if the parent directory exists, False otherwise
+    @return: True  the parent directory exists, False otherwise
     """
     parent = os.path.dirname(path)
     if parent == path or parent == os.path.dirname(parent):
@@ -49,18 +49,34 @@ async def is_path_allowed(path: str) -> bool:
         return True
     path = normalize_path(path)
     for allowed_dir in allowed_dirs:
-        if path.startswith(allowed_dir):
+        if path == allowed_dir or path.startswith(allowed_dir + os.sep):
+            # If the path is the same as the allowed dir or starts with it, allow it
             return True
     return False
 
+async def is_path_valid(path: str) -> bool:
+    """
+    Check if the path is valid
+    """
+    # Check if the path 
+    if not validate_parent_dirs(path):
+        return False
+    # Check if the path is allowed
+    if not await is_path_allowed(path):
+        return False
+    return True
+
 
 # MCP Tools
+
+
+
 async def read_file(path: str) -> bytes:
     """
     Read a file from the file system
     """
     # Check if the path is valid
-    pass
+    
 
 async def read_mutliple_files(paths: list) -> list:
     """
