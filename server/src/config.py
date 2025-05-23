@@ -4,40 +4,32 @@ import threading
 import platform
 import logging
 import aiofiles
+from typing import Optional
 
 # This is a singleton class to manage the configuration of the application.
 class ConfigManager:
     _instance = None
     _lock = threading.Lock()
 
-    def __new__(cls, config_path="server/src/config.json"):
+    def __new__(cls, config_path: Optional[str] = None):
         with cls._lock:
             if cls._instance is None:
                 cls._instance = super(ConfigManager, cls).__new__(cls)
-                cls._instance.config_path = config_path
-                cls._instance.config = {}
+                cls._instance._config_path = config_path
+                cls._instance._config = cls._get_default_config()
                 cls._instance.initialized = False
             return cls._instance
 
     async def init(self) -> None:
         if self.initialized:
             return
-        # make sure the directory exists
-        os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
-        try:
-            if os.path.exists(self.config_path):
-                async with aiofiles.open(self.config_path, "r", encoding="utf-8") as f:
-                    content = await f.read()
-                    self.config = json.loads(content)
-            else:
-                self.config = self.get_default_config()
-                await self.save_config()
-        except Exception as e:
-            logging.error(f"init configuration error: {e}")
-            self.config = self.get_default_config()
+        if self._config_path:
+            await self._load_config()
+
         self.initialized = True
 
-    def get_default_config(self) -> dict:
+    @staticmethod
+    def _get_default_config() -> dict:
         return {
             "blockedCommands": [
                 "mkfs",
@@ -79,39 +71,73 @@ class ConfigManager:
             "telemetryEnabled": True
         }
 
-    async def save_config(self) -> None:
+    async def _load_config(self) -> None:
         try:
-            async with aiofiles.open(self.config_path, "w", encoding="utf-8") as f:
-                await f.write(json.dumps(self.config, indent=2))
+            async with aiofiles.open(self._config_path, "r", encoding="utf-8") as f:
+                self._config = json.loads(await f.read())
+                self._config_path = os.path.abspath(self._config_path)
+                logging.info(f"configuration loaded from {self._config_path}")
+        except FileNotFoundError:
+            logging.error(f"configuration file not found, using default configuration")
+        except Exception as e:
+            logging.error(f"error loading configuration: {e}")
+            raise e
+        print(2)
+
+    async def save_config(self, save_path: Optional[str] = None) -> None:
+        save_path = save_path or self._config_path
+        if not save_path:
+            logging.error("No path provided to save the configuration.")
+            raise ValueError("No path provided to save the configuration.")
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        try:
+            async with aiofiles.open(save_path, "w", encoding="utf-8") as f:
+                await f.write(json.dumps(self._config, indent=2))
         except Exception as e:
             logging.error(f"save configuration error: {e}")
             raise e
 
-    async def get_config(self) -> dict:
-        await self.init()
-        return self.config.copy()
+    @property
+    def config(self) -> dict:
+        return self._config.copy()
 
-    async def get_value(self, key: str):
-        await self.init()
-        return self.config.get(key)
+    def get_value(self, key: str):
+        return self._config.get(key)
 
-    async def set_value(self, key: str, value) -> None:
-        await self.init()
-        #TODO: 这里有问题，当 telemetryEnabled 由 True 变为 False 时，执行特殊处理
-        if key == "telemetryEnabled" and value is False:
-            current_value = self.config.get(key)
-            if current_value is not False:
-                logging.info(f"捕获 telemetry opt-out 事件，原值: {current_value}")
-        self.config[key] = value
-        await self.save_config()
+    def set_value(self, key: str, value) -> None:
+        self._config[key] = value
 
-    async def update_config(self, updates: dict) -> dict:
-        await self.init()
-        self.config.update(updates)
-        await self.save_config()
-        return self.config.copy()
+    def update_config(self, updates: dict) -> dict:
+        self._config.update(updates)
+        return self._config.copy()
 
-    async def reset_config(self) -> dict:
-        self.config = self.get_default_config()
-        await self.save_config()
-        return self.config.copy()
+    def reset_config(self) -> dict:
+        self._config = self._get_default_config()
+        return self._config.copy()
+    
+
+# async def main():
+#     # 初始化时指定配置文件路径
+#     manager = ConfigManager(config_path="/Users/tangbingbing/workspace/mcp/mcp_fs_dm/server/src/config.json")
+#     print(manager.config)  # 显示默认配置
+#     # 显式初始化加载配置
+#     await manager.init()
+#     print(manager.config)  # 显示默认配置
+
+    
+#     # 修改配置
+#     manager.update_config({
+#         "telemetryEnabled": False,
+#         "allowed_directories": ["/safe/path"]
+#     })
+    
+#     # 保存到初始化路径
+#     # await manager.save_config(save_path="./config2.json")
+    
+#     # 创建新实例会得到同一个单例
+#     # new_manager = ConfigManager()
+#     # print(new_manager.config)  # 显示修改后的配置
+
+# # 异步运行示例
+# import asyncio
+# asyncio.run(main())

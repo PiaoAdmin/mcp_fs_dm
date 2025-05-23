@@ -21,9 +21,15 @@ async def get_allowed_dirs() -> list:
     return []
 
 def normalize_path(path: str) -> str:
+    """
+    Normalize the path by expanding user directory and removing trailing separators
+    @param path: The path to normalize
+    @return: The normalized path
+    """
     if path.startswith("~") or path == '~':
         # Expand the home directory
         path = os.path.expanduser(path)
+    path = os.path.abspath(path)
     return path.rstrip(os.sep)
 
 def validate_parent_dirs(path: str) -> bool:
