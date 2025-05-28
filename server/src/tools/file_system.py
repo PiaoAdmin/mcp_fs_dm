@@ -38,13 +38,26 @@ async def get_allowed_dirs() -> list:
         # If no allowed dirs are set, use the home directory
         if not allowed_dirs:
             allowed_dirs = [os.environ['HOME']]
-            await ConfigManager.set_value(config,"allowed_directories", allowed_dirs)
+            ConfigManager.set_value(config,"allowed_directories", allowed_dirs)
         allowed_dirs = [normalize_path(p) for p in allowed_dirs]
         return allowed_dirs
     except Exception as e:
         logging.error(f"Error getting allowed dirs:{e}")
     return []
 
+
+def validate_parent_dirs(path: str) -> bool:
+    """
+    Recursively validates parent directories until it finds a valid one
+    @param path: The path to validate
+    @return: True  the parent directory exists, False otherwise
+    """
+    parent = os.path.dirname(path)
+    if parent == path or parent == os.path.dirname(parent):
+        return False
+    if os.path.exists(parent):
+        return True
+    return validate_parent_dirs(parent)
 
 async def is_path_allowed(path: str) -> bool:
     """
@@ -104,7 +117,7 @@ class FileResult:
     """
     file_content: str
     #TODO: 可能是隐私
-    file_path: str 
+    file_path: str
     mini_type: str
     is_image: bool
 
@@ -121,19 +134,19 @@ async def read_file_from_disk(path: str, offset: int = 0, length: int = None, re
     """
     if not path:
         raise ValueError("Path is empty")
-    
+
     path = normalize_path(path)
     if not await is_path_valid(path):
         logging.error(f"Path is not valid: {path}")
         raise ValueError(f"Path is not valid: {path}")
-    
+
     if not os.path.exists(path):
         logging.error(f"Path does not exist: {path}")
         raise FileNotFoundError(f"Path does not exist: {path}")
-    
+
     if offset < 0:
         raise ValueError("Offset must be greater than or equal to 0")
-    
+
     if length is None and read_all is None:
         config = ConfigManager()
         await config.init()
@@ -173,9 +186,9 @@ async def read_file_from_disk(path: str, offset: int = 0, length: int = None, re
         except Exception as e:
             logging.error(f"Error reading file {path}: {e}")
             raise e
-    
+
     executed_content = await execute_with_timeout_async(read_operation, timeout=FILE_READ_TIMEOUT, default_value="")
-    
+
     return FileResult(
         file_content=executed_content,
         file_path=path,
@@ -198,12 +211,12 @@ async def write_file(path: str, content: str,  mode: Literal["rewrite", "append"
     """
     if not path:
         raise ValueError("Path is empty")
-    
+
     path = normalize_path(path)
     if not await is_path_valid(path):
         logging.error(f"Path is not valid: {path}")
         raise ValueError(f"Path is not valid: {path}")
-    
+
     write_mode = 'w' if mode == 'rewrite' else 'a'
 
     FILE_WRITE_TIMEOUT = 30  # seconds
@@ -214,13 +227,13 @@ async def write_file(path: str, content: str,  mode: Literal["rewrite", "append"
         except Exception as e:
             logging.error(f"Error writing file {path}: {e}")
             raise e
-        
+
     await execute_with_timeout_async(
-        write_operation, 
-        timeout=FILE_WRITE_TIMEOUT, 
+        write_operation,
+        timeout=FILE_WRITE_TIMEOUT,
         default_value=None
     )
-    
+
 
 async def move_file(src: str, dest: str) -> None:
     """
@@ -231,33 +244,33 @@ async def move_file(src: str, dest: str) -> None:
     """
     if not src or not dest:
         raise ValueError("Source or destination path is empty")
-    
+
     src = normalize_path(src)
     dest = normalize_path(dest)
     if not await is_path_valid(src) or not await is_path_valid(dest):
         logging.error(f"Source or destination path is not valid: {src} -> {dest}")
         raise ValueError(f"Source or destination path is not valid: {src} -> {dest}")
-    
+
     if not os.path.exists(src):
         logging.error(f"Source path does not exist: {src}")
         raise FileNotFoundError(f"Source path does not exist: {src}")
-    
+
     def move_operation() -> None:
         try:
             dest_dir = os.path.dirname(dest)
             if dest_dir and not os.path.exists(dest_dir):
                 os.makedirs(dest_dir, exist_ok=True)
-            
+
             os.rename(src, dest)
-            
+
         except Exception as e:
             logging.error(f"Error moving file from {src} to {dest}: {e}")
             raise e
-    
+
     FILE_MOVE_TIMEOUT = 30  # seconds
     await execute_with_timeout_async(
-        move_operation, 
-        timeout=FILE_MOVE_TIMEOUT, 
+        move_operation,
+        timeout=FILE_MOVE_TIMEOUT,
         default_value=None
     )
 
@@ -284,8 +297,8 @@ async def delete_file(path: str) -> None:
             raise e
     FILE_DELETE_TIMEOUT = 10  # seconds
     await execute_with_timeout_async(
-        delete_operation, 
-        timeout=FILE_DELETE_TIMEOUT, 
+        delete_operation,
+        timeout=FILE_DELETE_TIMEOUT,
         default_value=None
     )
 
@@ -324,18 +337,18 @@ async def list_files(path: str) -> list:
         except Exception as e:
             logging.error(f"Error listing directory {path}: {e}")
             raise e
-    
+
     FILE_LIST_TIMEOUT = 10  # seconds
     return await execute_with_timeout_async(
-        list_operation, 
-        timeout=FILE_LIST_TIMEOUT, 
+        list_operation,
+        timeout=FILE_LIST_TIMEOUT,
         default_value=[]
     )
 
 async def create_directory(path: str) -> None:
     """
     Create a directory
-    
+
     :param path: The directory path to create
     """
     if not path:
@@ -344,18 +357,18 @@ async def create_directory(path: str) -> None:
     if not await is_path_valid(path):
         logging.error(f"Path is not valid: {path}")
         raise ValueError(f"Path is not valid: {path}")
-    
+
     def create_operation():
         try:
             os.makedirs(path, exist_ok=True)
         except Exception as e:
             logging.error(f"Error creating directory {path}: {e}")
             raise e
-    
+
     FILE_CREATE_TIMEOUT = 10  # seconds
     await execute_with_timeout_async(
-        create_operation, 
-        timeout=FILE_CREATE_TIMEOUT, 
+        create_operation,
+        timeout=FILE_CREATE_TIMEOUT,
         default_value=None
     )
 

@@ -25,13 +25,12 @@ class ConfigManager:
             return
         if self._config_path:
             await self._load_config()
-
         self.initialized = True
 
     @staticmethod
     def _get_default_config() -> dict:
         return {
-            "blockedCommands": [
+            "blocked_commands": [
                 "mkfs",
                 "format",
                 "mount",
@@ -66,9 +65,9 @@ class ConfigManager:
                 "cipher",
                 "takeown"
             ],
-            "defaultShell": "powershell.exe" if platform.system().lower() == "windows" else "bash",
+            "default_shell": "powershell.exe" if platform.system().lower() == "windows" else "bash",
             "allowed_directories": [],
-            "telemetryEnabled": True
+            "telemetry_enabled": True
         }
 
     async def _load_config(self) -> None:
@@ -77,12 +76,15 @@ class ConfigManager:
                 self._config = json.loads(await f.read())
                 self._config_path = os.path.abspath(self._config_path)
                 logging.info(f"configuration loaded from {self._config_path}")
+            if self._config["add_default_config"]:
+                # If add_default_config is True, merge with default config
+                default_config = self._get_default_config()
+                self._config = {**default_config, **self._config}
         except FileNotFoundError:
             logging.error(f"configuration file not found, using default configuration")
         except Exception as e:
             logging.error(f"error loading configuration: {e}")
             raise e
-        print(2)
 
     async def save_config(self, save_path: Optional[str] = None) -> None:
         save_path = save_path or self._config_path
