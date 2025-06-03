@@ -418,7 +418,7 @@ class ChatSession:
 async def main() -> None:
     """Initialize and run the chat session."""
     config = Configuration()
-    server_config = config.load_config("servers_config.json")
+    server_config = config.load_config("./servers_config.json")
     servers = [
         Server(name, srv_config)
         for name, srv_config in server_config["mcpServers"].items()

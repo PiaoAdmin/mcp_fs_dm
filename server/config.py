@@ -20,11 +20,12 @@ class ConfigManager:
                 cls._instance.initialized = False
             return cls._instance
 
-    async def init(self) -> None:
+    def init(self) -> None:
         if self.initialized:
             return
         if self._config_path:
-            await self._load_config()
+            self._load_config()
+
         self.initialized = True
 
     @staticmethod
@@ -67,36 +68,41 @@ class ConfigManager:
             ],
             "default_shell": "powershell.exe" if platform.system().lower() == "windows" else "bash",
             "allowed_directories": [],
-            "telemetry_enabled": True
+            "max_read_length": 1000,
         }
 
-    async def _load_config(self) -> None:
+    def _load_config(self) -> None:
         try:
-            async with aiofiles.open(self._config_path, "r", encoding="utf-8") as f:
-                self._config = json.loads(await f.read())
+            with open(self._config_path, "r", encoding="utf-8") as f:
+                loaded_config = json.load(f)
                 self._config_path = os.path.abspath(self._config_path)
                 logging.info(f"configuration loaded from {self._config_path}")
-            if self._config["add_default_config"]:
-                # If add_default_config is True, merge with default config
+            if loaded_config.get("add_default_config", False):
                 default_config = self._get_default_config()
-                self._config = {**default_config, **self._config}
+                self._config = {**default_config, **loaded_config}
+            else:
+                self._config = loaded_config
         except FileNotFoundError:
-            logging.error(f"configuration file not found, using default configuration")
+            logging.warning(f"Configuration file not found at {self._config_path}, using default configuration")
+        except json.JSONDecodeError as e:
+            logging.error(f"Invalid JSON in configuration file: {e}")
+            raise e
         except Exception as e:
-            logging.error(f"error loading configuration: {e}")
+            logging.error(f"Error loading configuration: {e}")
             raise e
 
-    async def save_config(self, save_path: Optional[str] = None) -> None:
+    def save_config(self, save_path: Optional[str] = None) -> None:
         save_path = save_path or self._config_path
         if not save_path:
             logging.error("No path provided to save the configuration.")
             raise ValueError("No path provided to save the configuration.")
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         try:
-            async with aiofiles.open(save_path, "w", encoding="utf-8") as f:
-                await f.write(json.dumps(self._config, indent=2))
+            with open(save_path, "w", encoding="utf-8") as f:
+                 json.dump(self._config, f, indent=2, ensure_ascii=False)
+            logging.info(f"Configuration saved to {save_path}")
         except Exception as e:
-            logging.error(f"save configuration error: {e}")
+            logging.error(f"Error saving configuration: {e}")
             raise e
 
     @property
@@ -117,29 +123,19 @@ class ConfigManager:
         self._config = self._get_default_config()
         return self._config.copy()
     
+    def get_allowed_directories(self) -> list:
+        return self._config.get("allowed_directories", [])
 
-# async def main():
-#     # 初始化时指定配置文件路径
-#     manager = ConfigManager(config_path="/Users/tangbingbing/workspace/mcp/mcp_fs_dm/server/src/config.json")
-#     print(manager.config)  # 显示默认配置
-#     # 显式初始化加载配置
-#     await manager.init()
-#     print(manager.config)  # 显示默认配置
-
+def get_config_manager(config_path: Optional[str] = None) -> ConfigManager:
+    """
+    Get the singleton instance of ConfigManager.
     
-#     # 修改配置
-#     manager.update_config({
-#         "telemetryEnabled": False,
-#         "allowed_directories": ["/safe/path"]
-#     })
-    
-#     # 保存到初始化路径
-#     # await manager.save_config(save_path="./config2.json")
-    
-#     # 创建新实例会得到同一个单例
-#     # new_manager = ConfigManager()
-#     # print(new_manager.config)  # 显示修改后的配置
-
-# # 异步运行示例
-# import asyncio
-# asyncio.run(main())
+    :param config_path: Optional path to the configuration file.
+    :return: ConfigManager instance.
+    """
+    config = ConfigManager(config_path)
+    if not config.initialized:
+        config.init()
+    else:
+        logging.debug("ConfigManager already initialized.")
+    return config

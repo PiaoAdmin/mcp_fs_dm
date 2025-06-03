@@ -57,7 +57,6 @@ async def execute_with_timeout_async(
     """
     loop = asyncio.get_event_loop()
     try:
-        # 在线程池中运行同步函数
         result = await asyncio.wait_for(
             loop.run_in_executor(None, lambda: func(*args, **kwargs)),
             timeout=timeout

@@ -4,8 +4,12 @@
       "command": "uv",
       "args": [
         "run",
-        "/home/piao/workspace/mcp/mcp-data-manager/server/server.py"
-      ]
+        "-m",
+        "server",
+        "--config",
+        "/Users/tangbingbing/workspace/mcp/mcp_fs_dm/server/config.json"
+      ],
+      "cwd": "/Users/tangbingbing/workspace/mcp/mcp_fs_dm"
     }
   }
 }

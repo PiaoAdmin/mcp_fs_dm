@@ -2,11 +2,10 @@ import base64
 from dataclasses import dataclass
 import logging
 import os
-import pathlib
 from typing import Literal
-from server.src.config import ConfigManager
-from server.src.tools.mime_types import get_mime_type,is_image_file
-from server.src.utils.execute_with_timeout import execute_with_timeout_async
+from server.config import get_config_manager
+from server.tools.mime_types import get_mime_type,is_image_file
+from server.utils.execute_with_timeout import execute_with_timeout
 
 
 def normalize_path(path: str) -> str:
@@ -26,19 +25,17 @@ def normalize_path(path: str) -> str:
     return path.rstrip(os.sep)
 
 
-async def get_allowed_dirs() -> list:
+def get_allowed_dirs() -> list:
     """
     Get the allowed directories from configuration
     """
     try:
-        #TODO: 应该直接返回一个config
-        config = ConfigManager()
-        await config.init()
+        config = get_config_manager()
         allowed_dirs = config.config.get("allowed_directories", [])
         # If no allowed dirs are set, use the home directory
         if not allowed_dirs:
             allowed_dirs = [os.environ['HOME']]
-            ConfigManager.set_value(config,"allowed_directories", allowed_dirs)
+            config.set_value("allowed_directories", allowed_dirs)
         allowed_dirs = [normalize_path(p) for p in allowed_dirs]
         return allowed_dirs
     except Exception as e:
@@ -46,27 +43,14 @@ async def get_allowed_dirs() -> list:
     return []
 
 
-def validate_parent_dirs(path: str) -> bool:
-    """
-    Recursively validates parent directories until it finds a valid one
-    @param path: The path to validate
-    @return: True  the parent directory exists, False otherwise
-    """
-    parent = os.path.dirname(path)
-    if parent == path or parent == os.path.dirname(parent):
-        return False
-    if os.path.exists(parent):
-        return True
-    return validate_parent_dirs(parent)
-
-async def is_path_allowed(path: str) -> bool:
+def is_path_allowed(path: str) -> bool:
     """
     Check if the path is allowed to access
 
     :param path: The path to check
     :return: True if the path is allowed, False otherwise
     """
-    allowed_dirs = await get_allowed_dirs()
+    allowed_dirs = get_allowed_dirs()
     if "/" in allowed_dirs or not allowed_dirs:
         # If the allowed dirs are empty or contain "/", allow all paths
         return True
@@ -93,7 +77,7 @@ def validate_parent_dirs(path: str) -> bool:
     return validate_parent_dirs(parent)
 
 
-async def is_path_valid(path: str) -> bool:
+def is_path_valid(path: str) -> bool:
     """
     Check if the path is valid
 
@@ -104,7 +88,7 @@ async def is_path_valid(path: str) -> bool:
     if not validate_parent_dirs(path):
         return False
     # Check if the path is allowed
-    if not await is_path_allowed(path):
+    if not is_path_allowed(path):
         return False
     return True
 
@@ -116,13 +100,12 @@ class FileResult:
     File result class
     """
     file_content: str
-    #TODO: 可能是隐私
     file_path: str
     mini_type: str
     is_image: bool
 
 
-async def read_file_from_disk(path: str, offset: int = 0, length: int = None, read_all: bool = None) -> FileResult:
+def read_file_from_disk(path: str, offset: int = 0, length: int = None, read_all: bool = None) -> FileResult:
     """
     Read a file from the disk
 
@@ -136,7 +119,7 @@ async def read_file_from_disk(path: str, offset: int = 0, length: int = None, re
         raise ValueError("Path is empty")
 
     path = normalize_path(path)
-    if not await is_path_valid(path):
+    if not is_path_valid(path):
         logging.error(f"Path is not valid: {path}")
         raise ValueError(f"Path is not valid: {path}")
 
@@ -148,8 +131,7 @@ async def read_file_from_disk(path: str, offset: int = 0, length: int = None, re
         raise ValueError("Offset must be greater than or equal to 0")
 
     if length is None and read_all is None:
-        config = ConfigManager()
-        await config.init()
+        config = get_config_manager()
         length = config.config.get("max_read_length", 1000)
 
     mime_type = get_mime_type(path)
@@ -187,7 +169,7 @@ async def read_file_from_disk(path: str, offset: int = 0, length: int = None, re
             logging.error(f"Error reading file {path}: {e}")
             raise e
 
-    executed_content = await execute_with_timeout_async(read_operation, timeout=FILE_READ_TIMEOUT, default_value="")
+    executed_content = execute_with_timeout(read_operation, timeout=FILE_READ_TIMEOUT, default_value="")
 
     return FileResult(
         file_content=executed_content,
@@ -197,11 +179,11 @@ async def read_file_from_disk(path: str, offset: int = 0, length: int = None, re
     )
 
 
-async def read_file(path: str, offset: int = 0, length: int = None, read_all: bool = None) -> FileResult:
+def read_file(path: str, offset: int = 0, length: int = None, read_all: bool = None) -> FileResult:
     return read_file_from_disk(path, offset, length, read_all)
     
 
-async def write_file(path: str, content: str,  mode: Literal["rewrite", "append"] = 'rewrite') -> None:
+def write_file(path: str, content: str,  mode: Literal["rewrite", "append"] = 'rewrite') -> None:
     """
     Write content to a file
 
@@ -213,7 +195,7 @@ async def write_file(path: str, content: str,  mode: Literal["rewrite", "append"
         raise ValueError("Path is empty")
 
     path = normalize_path(path)
-    if not await is_path_valid(path):
+    if not is_path_valid(path):
         logging.error(f"Path is not valid: {path}")
         raise ValueError(f"Path is not valid: {path}")
 
@@ -228,14 +210,14 @@ async def write_file(path: str, content: str,  mode: Literal["rewrite", "append"
             logging.error(f"Error writing file {path}: {e}")
             raise e
 
-    await execute_with_timeout_async(
+    execute_with_timeout(
         write_operation,
         timeout=FILE_WRITE_TIMEOUT,
         default_value=None
     )
 
 
-async def move_file(src: str, dest: str) -> None:
+def move_file(src: str, dest: str) -> None:
     """
     Move a file from src to dest, if the destination exists, it will be overwritten
 
@@ -247,7 +229,7 @@ async def move_file(src: str, dest: str) -> None:
 
     src = normalize_path(src)
     dest = normalize_path(dest)
-    if not await is_path_valid(src) or not await is_path_valid(dest):
+    if not is_path_valid(src) or not is_path_valid(dest):
         logging.error(f"Source or destination path is not valid: {src} -> {dest}")
         raise ValueError(f"Source or destination path is not valid: {src} -> {dest}")
 
@@ -268,13 +250,14 @@ async def move_file(src: str, dest: str) -> None:
             raise e
 
     FILE_MOVE_TIMEOUT = 30  # seconds
-    await execute_with_timeout_async(
+    execute_with_timeout(
         move_operation,
         timeout=FILE_MOVE_TIMEOUT,
         default_value=None
     )
 
-async def delete_file(path: str) -> None:
+
+def delete_file(path: str) -> None:
     """
     Delete a file
 
@@ -283,7 +266,7 @@ async def delete_file(path: str) -> None:
     if not path:
         raise ValueError("Path is empty")
     path = normalize_path(path)
-    if not await is_path_valid(path):
+    if not is_path_valid(path):
         logging.error(f"Path is not valid: {path}")
         raise ValueError(f"Path is not valid: {path}")
     if not os.path.exists(path):
@@ -296,13 +279,14 @@ async def delete_file(path: str) -> None:
             logging.error(f"Error deleting file {path}: {e}")
             raise e
     FILE_DELETE_TIMEOUT = 10  # seconds
-    await execute_with_timeout_async(
+    execute_with_timeout(
         delete_operation,
         timeout=FILE_DELETE_TIMEOUT,
         default_value=None
     )
 
-async def list_files(path: str) -> list:
+
+def list_files(path: str) -> list:
     """
     List files in a directory
 
@@ -312,7 +296,7 @@ async def list_files(path: str) -> list:
     if not path:
         raise ValueError("Path is empty")
     path = normalize_path(path)
-    if not await is_path_valid(path):
+    if not is_path_valid(path):
         logging.error(f"Path is not valid: {path}")
         raise ValueError(f"Path is not valid: {path}")
     if not os.path.exists(path):
@@ -339,13 +323,14 @@ async def list_files(path: str) -> list:
             raise e
 
     FILE_LIST_TIMEOUT = 10  # seconds
-    return await execute_with_timeout_async(
+    return execute_with_timeout(
         list_operation,
         timeout=FILE_LIST_TIMEOUT,
         default_value=[]
     )
 
-async def create_directory(path: str) -> None:
+
+def create_directory(path: str) -> None:
     """
     Create a directory
 
@@ -354,7 +339,7 @@ async def create_directory(path: str) -> None:
     if not path:
         raise ValueError("Path is empty")
     path = normalize_path(path)
-    if not await is_path_valid(path):
+    if not is_path_valid(path):
         logging.error(f"Path is not valid: {path}")
         raise ValueError(f"Path is not valid: {path}")
 
@@ -366,7 +351,7 @@ async def create_directory(path: str) -> None:
             raise e
 
     FILE_CREATE_TIMEOUT = 10  # seconds
-    await execute_with_timeout_async(
+    execute_with_timeout(
         create_operation,
         timeout=FILE_CREATE_TIMEOUT,
         default_value=None
