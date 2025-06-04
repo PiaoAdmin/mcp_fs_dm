@@ -1,6 +1,6 @@
 {
   "allowed_directories": [
-    "/home/workspace/mcp",
+    "/Users/tangbingbing/workspace/mcp/mcp_fs_dm",
     "~"
   ],
   "shell": "/bin/bash",

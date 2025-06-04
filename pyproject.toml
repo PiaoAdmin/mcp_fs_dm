@@ -10,4 +10,5 @@ dependencies = [
     "mcp[cli]>=1.8.1",
     "numpy>=2.2.6",
     "pandas>=2.2.3",
+    "psutil>=7.0.0",
 ]
