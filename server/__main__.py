@@ -1,4 +1,4 @@
-from server.server import main
+from server.mcp_server import main
 
 if __name__ == "__main__":
     main()

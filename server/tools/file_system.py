@@ -290,7 +290,7 @@ def list_files(path: str) -> list:
     """
     List files in a directory
 
-    :param path: The directory path to list
+    :param path: The directory path to list.
     :return: List of file and directory information
     """
     if not path:

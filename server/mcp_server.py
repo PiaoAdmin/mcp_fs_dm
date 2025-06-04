@@ -1,3 +1,9 @@
+import sys
+from pathlib import Path
+
+project_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(project_dir))
+
 import argparse
 from typing_extensions import Literal
 from mcp.server.fastmcp import FastMCP
@@ -93,6 +99,7 @@ def main():
     args = parser.parse_args()
     get_config_manager(config_path=args.config)
     mcp_server.run(transport='stdio')
+
 
 if __name__ == "__main__":
     main()
