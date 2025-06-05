@@ -9,7 +9,7 @@ from typing_extensions import Literal
 from mcp.server.fastmcp import FastMCP
 from server.tools.file_system import read_file, write_file, delete_file, list_files, move_file, create_directory, FileResult
 from server.config import get_config_manager
-
+from server.tools.commands import execute_command, read_output, get_active_sessions, force_terminate
 
 mcp_server = FastMCP(
     "file_system",
@@ -17,7 +17,7 @@ mcp_server = FastMCP(
     version="0.1.0",
 )
 
-
+# File system tools
 @mcp_server.tool()
 def read_file_tool(path: str, offset: int = 0, length: int = None, read_all: bool = None) -> FileResult:
     """
@@ -89,7 +89,78 @@ def create_directory_tool(directory: str) -> bool:
     """
     return True if create_directory(directory) is None else False
 
+
+# Configuration management tools
+@mcp_server.tool()
+def get_config_tool() -> dict:
+    """
+    Get the current configuration.
+    """
+    config_manager = get_config_manager()
+    return config_manager.config
+
+
+@mcp_server.tool()
+def set_config_tool(key: str, value) -> dict:
+    """
+    Set a configuration value.
     
+    :param key: The configuration key to set.
+    :param value: The value to set for the configuration key.
+    :return: The updated configuration.
+    """
+    config_manager = get_config_manager()
+    config_manager.set_value(key, value)
+    return config_manager.config
+
+
+# Command execution tools
+@mcp_server.tool()
+def execute_command_tool(command: str, timeout: float, shell: str = None) -> dict:
+    """
+    Execute a command in the shell.
+    
+    :param command: The command to execute.
+    :param timeout: The timeout for the command execution.
+    :param shell: The shell to use for execution, optional.
+    :return: A dict containing the result of the command execution.
+    """
+    return execute_command(command, timeout=timeout, shell=shell)
+
+
+@mcp_server.tool()
+def read_output_tool(pid: int, is_full: bool = False) -> dict:
+    """
+    Read the output of a command execution.
+    
+    :param pid: The process ID of the command.
+    :param is_full: Whether to read the full output or just the new output.
+    :return: A dict containing the output of the command.
+    """
+    return read_output(pid, is_full)
+
+
+@mcp_server.tool()
+def get_active_sessions_tool() -> dict:
+    """
+    Get the list of active command execution sessions.
+    
+    :return: A dict containing the active sessions and their details.
+    """
+    return get_active_sessions()
+
+
+@mcp_server.tool()
+def force_terminate_tool(pid: int) -> dict:
+    """
+    Force terminate a command execution session.
+    
+    :param pid: The process ID of the command to terminate.
+    :return: A dict indicating whether the termination was successful.
+    """
+    return force_terminate(pid)
+
+
 def main():
     """
     Main entry point for the server.
