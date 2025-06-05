@@ -190,7 +190,7 @@ def execute_command(command: str, timeout: float, shell: Optional[str] = None) -
     return {
         "isError": False,
         "type": "result",
-        "pid": result.pid,
+        "pid": result.get("pid", -1),
         "content": result.get("output", ""),
         "isBlocked": result.get("isBlocked", False)
     }
