@@ -1,5 +1,6 @@
 import logging
 import shlex
+from typing import Any, Dict, Optional
 
 from server.config import get_config_manager
 
@@ -112,24 +113,34 @@ def extract_commands(command: str) -> list:
 
 def validate_command(command: str) -> bool:
     """
-    Validates a command string to ensure it does not contain any blocked commands.
+    Check if the base command allows execution.
 
-    :param command: The command string to validate.
+    :param command: The command to validate.
     :return: True if the command is valid, False otherwise.
     """
+    commands = extract_commands(command)
     config = get_config_manager()
-    blocked_commands = config.get_value("blocked_commands") or []
+    blocked_commands = config.config.get("blocked_commands", [])
     if not blocked_commands:
         return True
-    cmds = extract_commands(command)
-    for cmd in cmds:
+    for cmd in commands:
         if cmd in blocked_commands:
+            logging.error(f"Command '{cmd}' is blocked.")
             return False
     return True
 
+def execute_command(command: str, timeout: float, shell: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Executes a shell command.
+    
+    :param command: The command to execute.
+    """
+    if not validate_command(command):
+        return {
+            "isError": True,
+            "type": "text",
+            "content": f"command is blocked: {command}"
+        }
+    
 
-if __name__ == '__main__':
-    print(
-        extract_commands('''JAVA_HOME=/usr/jdk sudo rm -rf; grep "pattern" file && echo "done"''')
-    )
-    print(validate_command('''JAVA_HOME=/usr/jdk sudo rm -rf; grep "pattern" file && echo "done"'''))
+    
