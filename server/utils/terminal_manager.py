@@ -1,3 +1,6 @@
+import os
+import pty
+import select
 import signal
 import subprocess
 import threading
@@ -30,6 +33,87 @@ class CommandResult(TypedDict):
     pid: int
     output: str
     isBlocked: bool    
+
+class PersistentSession:
+    def __init__(self, session_id:str, shell:str):
+        self.session_id = session_id
+        self.shell = shell
+        self.shell = shell
+        self.master_fd = None
+        self.slave_fd = None
+        self.process = None
+        self.start_time = time.time()
+        self.last_output = ''
+        self.all_output = ''
+        self.is_active = False
+        self.output_lock = threading.Lock()
+        self.reader_thread = None
+
+    def start(self):
+        try:
+            self.master_fd, self.slave_fd = pty.openpty()
+
+            self.process = subprocess.Popen(
+                [self.shell],
+                stdin=self.slave_fd,
+                stdout=self.slave_fd,
+                stderr=self.slave_fd,
+                start_new_session=True,
+                preexec_fn=os.setsid
+            )
+            self.is_active = True
+            self.reader_thread = threading.Thread(target=self._read_output_loop, daemon=True)
+            self.reader_thread.start()
+
+            return True
+        except Exception as e:
+            self.cleanup()
+            return False
+
+    def _read_output_loop(self):
+        while self.is_active and self.master_fd:
+            try:
+                # 使用select检查是否有数据可读
+                ready, _, _ = select.select([self.master_fd], [], [], 0.1)
+                if ready:
+                    try:
+                        data = os.read(self.master_fd, 1024).decode('utf-8', errors='ignore')
+                        if data:
+                            with self.output_lock:
+                                self.last_output += data
+                                self.all_output += data
+                    except OSError:
+                        break
+            except Exception:
+                break
+
+    def execute_command(self, command: str):
+        if not self.is_active or not self.master_fd:
+            return False
+        try:
+            os.write(self.master_fd, (command + '\n').encode('utf-8'))
+            return True
+        except OSError:
+            return False
+
+    def get_output(self, is_full: bool = False) -> str:
+        with self.output_lock:
+            output = self.all_output if is_full else self.last_output
+            self.last_output = ''
+        return output
+
+    def cleanup(self):
+        self.is_active = False
+        if self.process:
+            try:
+                self.process.terminate()
+                self.process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+        if self.master_fd:
+            os.close(self.master_fd)
+        if self.slave_fd:
+            os.close(self.slave_fd)
 
 
 class TerminalManager:
